@@ -418,5 +418,5 @@ document.addEventListener('click', e => {
 
 document.getElementById('srcs').innerHTML = SOURCES.map(u => `<li><a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace('https://www.', ''))}</a></li>`).join('');
 stats(); renderCards(); renderRows();
-if (location.hostname.endsWith('github.io')) document.getElementById('gh-link').hidden = false;
+if (/(^|\.)(github\.io|vercel\.app)$/.test(location.hostname)) document.getElementById('gh-link').hidden = false;
 </script>

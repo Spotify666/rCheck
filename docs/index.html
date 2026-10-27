@@ -686,5 +686,5 @@ if (CAN_SYNC) {
   if (code) startSync(code).then(ok => { if (joined) toast(ok ? 'Synced with your other device' : 'Could not reach the sync server'); });
 }
 drawSync();
-if (location.hostname.endsWith('github.io')) document.getElementById('gh-link').hidden = false;
+if (/(^|\.)(github\.io|vercel\.app)$/.test(location.hostname)) document.getElementById('gh-link').hidden = false;
 </script>

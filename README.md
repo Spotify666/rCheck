@@ -6,7 +6,7 @@
 - `docs/index.html`: a compact, phone-friendly version with tap filters, a posted-date range, copy buttons (as a message or spreadsheet rows) and saved collections. Collections stay in the browser; turning on sync (Manage → Turn on sync) gives a private link that keeps them the same on other phones and browsers, stored in Supabase.
 - `listings.csv`: all 199 listings with rent, deposit, size, floor, water, lift, power backup, owner name, link, whether an Indian-style toilet appears in the photos, and a condition note.
 
-The `docs` folder is laid out for GitHub Pages: in Settings → Pages, deploy from this branch's `/docs` folder and the compact page becomes the site's front page.
+The site is hosted on Vercel at https://rcheck-cyan.vercel.app (project `rcheck`, root directory `docs`, no build step); every push to this branch redeploys it. The same `docs` folder also works with GitHub Pages (Settings → Pages, deploy from this branch's `/docs` folder).
 
 Phone numbers are not included: both sites show them only to logged-in users ("Get Owner Details" on NoBroker, "View Number" on SquareYards).
 
