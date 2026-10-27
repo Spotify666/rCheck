@@ -1,4 +1,5 @@
 <title>Central Hyderabad Rental Shortlist</title>
+<meta name="robots" content="noindex, nofollow">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -140,6 +141,7 @@ tr.hl td { background: var(--yes-soft); }
 <div class="wrap">
   <header>
     <p class="eyebrow">House hunt · Hyderabad · checked 26 Oct 2026</p>
+    <p id="gh-link" hidden><a href="./">Open the compact view for phones</a></p>
     <h1>2 & 3 BHK rentals near Himayatnagar for a family of four</h1>
     <p class="lede">Every listing currently live on NoBroker and SquareYards in Himayatnagar, Narayanguda, Kachiguda, Ashok Nagar, VST, Gandhi Nagar, Kavadiguda and RTC X Roads. I opened every photo to look for an Indian-style toilet and to judge how clean and well kept each place looks. On 26 Oct 2026 I reopened every shortlisted listing, and all were still open. Each listing shows the date it was last posted or re-confirmed by the owner.</p>
     <div class="criteria">
@@ -411,4 +413,5 @@ document.addEventListener('click', e => {
 
 document.getElementById('srcs').innerHTML = SOURCES.map(u => `<li><a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace('https://www.', ''))}</a></li>`).join('');
 stats(); renderCards(); renderRows();
+if (location.hostname.endsWith('github.io')) document.getElementById('gh-link').hidden = false;
 </script>
