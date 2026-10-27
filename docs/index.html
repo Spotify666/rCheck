@@ -109,7 +109,9 @@ details[open] summary::before { content: "▾ "; }
 
 /* manual copy sheet */
 .sheet { position: fixed; inset: 0; z-index: 40; background: rgba(0, 0, 0, 0.45); display: grid; align-items: end; padding-top: env(safe-area-inset-top, 0px); }
-.sheet-in { background: var(--surface); border-radius: 14px 14px 0 0; padding: 14px; padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); padding-left: max(14px, env(safe-area-inset-left, 0px)); padding-right: max(14px, env(safe-area-inset-right, 0px)); display: grid; gap: 10px; max-height: 85vh; max-width: 760px; width: 100%; margin: 0 auto; }
+.sheet-in { background: var(--surface); border-radius: 14px 14px 0 0; padding: 14px; padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); padding-left: max(14px, env(safe-area-inset-left, 0px)); padding-right: max(14px, env(safe-area-inset-right, 0px)); display: grid; gap: 10px; max-height: 85vh; max-height: 85dvh; overflow-y: auto; overscroll-behavior: contain; max-width: 760px; width: 100%; margin: 0 auto; }
+#csheet .sheet-in { padding-bottom: 0; }
+#csheet .sheet-in > .acts:last-child { position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); padding: 10px 0 calc(14px + env(safe-area-inset-bottom, 0px)); }
 .sheet textarea { width: 100%; min-height: 45vh; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); padding: 10px; font: 0.82rem/1.4 ui-monospace, Menlo, Consolas, monospace; resize: vertical; }
 .daterow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 0.85rem; color: var(--muted); }
 .daterow input { border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 8px; padding: 5px 8px; min-width: 0; font-size: 0.85rem; }
@@ -125,6 +127,10 @@ label.crow span { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .crow input[type=text] { flex: 1 1 auto; min-width: 0; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 8px; padding: 7px 9px; }
 .backup { display: grid; gap: 6px; border-top: 1px solid var(--line); padding-top: 10px; }
 .sheet textarea.small { min-height: 64px; }
+.sync input[type=text] { width: 100%; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 8px; padding: 7px 9px; font-size: 0.8rem; }
+.sync .state { font-weight: 700; }
+.sync .state.ok { color: var(--accent); }
+.sync .state.err { color: var(--warn); }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 </style>
 
@@ -146,7 +152,7 @@ label.crow span { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
         <option value="big">Biggest</option>
       </select>
     </div>
-    <div class="frow"><span>My collections</span><div class="chips" id="c-coll"></div></div>
+    <div class="frow"><span id="coll-label">My collections</span><div class="chips" id="c-coll"></div></div>
     <div class="frow"><span>Must have</span><div class="chips" id="c-must"></div></div>
     <div class="frow"><span>Area</span><div class="chips" id="c-area"></div></div>
     <div class="frow"><span>Size</span><div class="chips" id="c-bhk"></div></div>
@@ -189,6 +195,17 @@ label.crow span { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
     <p class="sub" id="csheet-sub"></p>
     <div class="clist" id="csheet-list"></div>
     <div class="crow"><input type="text" id="cnew" maxlength="40" placeholder="New collection, e.g. Visit on Saturday" aria-label="New collection name"><button class="btn" type="button" id="cnew-add">Add</button></div>
+    <div class="backup sync" id="csync" hidden>
+      <strong>Sync across your devices</strong>
+      <span class="sub"><span class="state" id="sync-state"></span> <span id="sync-help"></span></span>
+      <div class="acts" id="sync-off"><button class="btn primary" type="button" id="sync-on">Turn on sync</button></div>
+      <div id="sync-box" hidden>
+        <span class="sub">Open this link on your other phone or browser. Anyone with it can see and change your collections, so share it only with family.</span>
+        <input type="text" id="sync-link" readonly aria-label="Your sync link">
+        <div class="acts"><button class="btn" type="button" id="sync-copy">Copy sync link</button><button class="btn" type="button" id="sync-now">Sync now</button><button class="btn" type="button" id="sync-stop">Stop syncing here</button></div>
+      </div>
+      <div class="crow"><input type="text" id="sync-join" placeholder="Paste a sync link or code from another device" aria-label="Sync link or code"><button class="btn" type="button" id="sync-join-btn">Use</button></div>
+    </div>
     <div class="backup" id="cbackup" hidden>
       <span class="sub">Backup code: copy it, then paste it into this page on another phone or browser to bring your collections there.</span>
       <textarea class="small" id="cb-code" readonly aria-label="Backup code"></textarea>
@@ -235,6 +252,7 @@ function mergeColl(a, b) {
 }
 async function persistColl() {
   try { localStorage.setItem(CKEY, JSON.stringify(COLL)); } catch (e) {}
+  queuePush();
   if (Store.mode !== 'cloud') return;
   if (Store.writing) { Store.pending = true; return; }
   Store.writing = true;
@@ -277,6 +295,100 @@ function restoreCode(code) {
   const m = /RF1:([A-Za-z0-9+/=]+)/.exec(String(code).replace(/\s+/g, ''));
   if (!m) return false;
   try { COLL = mergeColl(COLL, normColl(JSON.parse(decodeURIComponent(escape(atob(m[1])))))); return true; } catch (e) { return false; }
+}
+
+// Cross-device sync through Supabase (used on the hosted site; claude.ai uses its own storage above)
+const SB_URL = 'https://vykolxofwjlllfrsohil.supabase.co';
+const SB_KEY = 'sb_publishable_HSTYI1eghX-dMm1yH07xVg_AoSVF-6-';
+const SKEY = 'rent-sync-v1';
+const CAN_SYNC = /^https?:$/.test(location.protocol) && !(window.claude && typeof window.claude.use === 'function');
+const Sync = { code: null, rev: 0, last: 0, base: null, state: 'off', busy: false, pending: false, timer: null };
+try { const v = JSON.parse(localStorage.getItem(SKEY) || 'null'); if (v && /^RF-[A-Za-z0-9]{24,64}$/.test(v.code)) Object.assign(Sync, { code: v.code, rev: v.rev || 0, last: v.last || 0, base: v.base ? normColl(v.base) : null }); } catch (e) {}
+const saveSyncMeta = () => { try { localStorage.setItem(SKEY, JSON.stringify(Sync.code ? { code: Sync.code, rev: Sync.rev, last: Sync.last, base: Sync.base } : null)); } catch (e) {} };
+const saveLocalColl = () => { try { localStorage.setItem(CKEY, JSON.stringify(COLL)); } catch (e) {} };
+function newCode() {
+  const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789', b = new Uint8Array(28);
+  crypto.getRandomValues(b);
+  return 'RF-' + [...b].map(x => abc[x % abc.length]).join('');
+}
+const codeFrom = t => { const m = /RF-[A-Za-z0-9]{24,64}/.exec(String(t || '')); return m ? m[0] : null; };
+const syncLink = () => location.origin + location.pathname + '#sync=' + Sync.code;
+async function rpc(fn, body) {
+  const r = await fetch(`${SB_URL}/rest/v1/rpc/${fn}`, { method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const t = await r.text();
+  if (!r.ok) { let m = r.status; try { m = JSON.parse(t).message || m; } catch (e) {} throw new Error(m); }
+  return t ? JSON.parse(t) : null;
+}
+function setSync(state) { Sync.state = state; drawSync(); }
+// Apply what this device changed since `base` (the last copy it synced) on top of the server's copy,
+// so two phones editing at once keep each other's additions, removals and deletes
+function rebase(base, local, remote) {
+  const out = normColl(JSON.parse(JSON.stringify(remote)));
+  const B = new Map(base.collections.map(c => [c.id, c])), L = new Set(local.collections.map(c => c.id));
+  for (const c of local.collections) {
+    const b = B.get(c.id), x = out.collections.find(y => y.id === c.id);
+    if (!b) { if (x) x.items = [...new Set(x.items.concat(c.items))]; else out.collections.push(JSON.parse(JSON.stringify(c))); continue; }
+    if (!x) continue; // deleted on another device
+    if (c.name !== b.name) x.name = c.name;
+    const removed = new Set(b.items.filter(k => !c.items.includes(k)));
+    x.items = [...new Set(x.items.concat(c.items.filter(k => !b.items.includes(k))))].filter(k => !removed.has(k));
+  }
+  out.collections = out.collections.filter(c => !B.has(c.id) || L.has(c.id));
+  return out;
+}
+async function syncPull() {
+  const res = await rpc('rentals_get_collections', { p_code: Sync.code });
+  if (!res || !res.data) return { existed: false };
+  const remote = normColl(res.data), before = JSON.stringify(COLL);
+  COLL = Sync.base ? rebase(Sync.base, COLL, remote) : mergeColl(remote, COLL);
+  Object.assign(Sync, { base: remote, rev: res.rev, last: Date.now() }); saveLocalColl(); saveSyncMeta();
+  return { existed: true, differs: JSON.stringify(COLL) !== JSON.stringify(remote), touched: JSON.stringify(COLL) !== before };
+}
+// p_rev makes the server refuse a save based on an old copy ({conflict: true}); fall back if it predates that
+async function saveRemote(data, rev) {
+  try { return await rpc('rentals_save_collections', { p_code: Sync.code, p_data: data, p_rev: rev }); }
+  catch (e) { if (!/p_rev/.test(e.message)) throw e; return rpc('rentals_save_collections', { p_code: Sync.code, p_data: data }); }
+}
+async function syncPush() {
+  if (!Sync.code) return;
+  if (Sync.busy) { Sync.pending = true; return; }
+  Sync.busy = true; setSync('saving');
+  let touched = false, tries = 0;
+  try {
+    do {
+      Sync.pending = false;
+      const r = await syncPull(); touched = touched || r.touched;
+      if (r.existed && !r.differs) continue;
+      const sent = JSON.parse(JSON.stringify(COLL)), res = await saveRemote(sent, r.existed ? Sync.rev : 0);
+      if (res.conflict) { if (++tries > 5) throw new Error('conflict'); Sync.pending = true; continue; }
+      Object.assign(Sync, { base: sent, rev: res.rev, last: Date.now() });
+    } while (Sync.pending);
+    setSync('ok');
+  } catch (e) { setSync('error'); }
+  finally { Sync.busy = false; saveSyncMeta(); if (touched) { render(); refreshSheet(); } }
+}
+function queuePush() { if (!Sync.code) return; clearTimeout(Sync.timer); Sync.timer = setTimeout(syncPush, 400); }
+async function startSync(code) {
+  while (Sync.busy) await new Promise(r => setTimeout(r, 100));
+  if (code !== Sync.code) Object.assign(Sync, { code, rev: 0, base: null });
+  saveSyncMeta(); await syncPush();
+  return Sync.state === 'ok';
+}
+function refreshFromCloud() { if (Sync.code && !Sync.busy) syncPush(); }
+function agoShort(t) { if (!t) return ''; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; }
+function drawSync() {
+  const lab = document.getElementById('coll-label');
+  if (lab) lab.textContent = Sync.code ? `My collections · ${Sync.state === 'error' ? 'sync paused' : Sync.state === 'saving' ? 'syncing…' : 'synced'}` : 'My collections';
+  const box = document.getElementById('csync'); if (!box) return;
+  box.hidden = !(CAN_SYNC && sheetMode === 'manage');
+  const st = document.getElementById('sync-state'), help = document.getElementById('sync-help');
+  document.getElementById('sync-off').hidden = !!Sync.code;
+  document.getElementById('sync-box').hidden = !Sync.code;
+  if (!Sync.code) { st.textContent = 'Off.'; st.className = 'state'; help.textContent = 'Turn it on to see the same collections on every phone and browser you use.'; return; }
+  document.getElementById('sync-link').value = syncLink();
+  if (Sync.state === 'error') { st.textContent = 'Could not reach the sync server.'; st.className = 'state err'; help.textContent = 'Your changes are kept here and will sync when you tap Sync now or reopen the page.'; }
+  else if (Sync.state === 'saving') { st.textContent = 'Syncing…'; st.className = 'state'; help.textContent = ''; }
+  else { st.textContent = 'On.'; st.className = 'state ok'; help.textContent = Sync.last ? `Last synced ${agoShort(Sync.last)}.` : ''; }
 }
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -463,10 +575,12 @@ document.getElementById('list').addEventListener('click', e => {
 let sheetMode = null, sheetKey = null, armedDelete = null;
 const storeNote = () => Store.mode === 'cloud'
   ? 'Collections are saved to your claude.ai account, so they follow you to other devices.'
+  : Sync.code ? 'Collections sync across your devices through your sync link.'
+  : CAN_SYNC ? 'Collections are saved in this browser. Turn on sync under Manage to see them on your other devices.'
   : 'Collections are saved in this browser on this device. Use the backup code to move them to another phone or browser.';
 function openSave(key) { sheetMode = 'save'; sheetKey = key; armedDelete = null; refreshSheet(); document.getElementById('csheet').hidden = false; }
 function openManage() { sheetMode = 'manage'; sheetKey = null; armedDelete = null; refreshSheet(); document.getElementById('csheet').hidden = false; }
-function closeSheet() { document.getElementById('csheet').hidden = true; sheetMode = null; sheetKey = null; armedDelete = null; }
+function closeSheet() { document.getElementById('csheet').hidden = true; sheetMode = null; sheetKey = null; armedDelete = null; drawSync(); }
 function refreshSheet() {
   if (!sheetMode) return;
   const h = document.getElementById('csheet-h'), sub = document.getElementById('csheet-sub'), list = document.getElementById('csheet-list');
@@ -487,6 +601,7 @@ function refreshSheet() {
     document.getElementById('cbackup').hidden = false;
     document.getElementById('cb-code').value = backupCode();
   }
+  drawSync();
 }
 function changed(msg) { persistColl(); render(); refreshSheet(); if (msg) toast(msg); }
 document.getElementById('csheet-list').addEventListener('change', e => {
@@ -551,7 +666,25 @@ document.getElementById('sort').addEventListener('change', e => { S.sort = e.tar
 document.getElementById('reset').addEventListener('click', () => { const fmt = S.fmt; S = Object.assign({}, DEFAULT, { fmt }); render(); });
 document.getElementById('sheet-close').addEventListener('click', () => { document.getElementById('sheet').hidden = true; });
 document.getElementById('sheet').addEventListener('click', e => { if (e.target.id === 'sheet') e.currentTarget.hidden = true; });
+document.getElementById('sync-on').addEventListener('click', async () => { if (await startSync(newCode())) toast('Sync is on. Copy the link to your other devices.'); });
+document.getElementById('sync-copy').addEventListener('click', () => copy(syncLink(), 'sync link'));
+document.getElementById('sync-now').addEventListener('click', () => syncPush());
+document.getElementById('sync-stop').addEventListener('click', () => { Object.assign(Sync, { code: null, rev: 0, last: 0, base: null }); saveSyncMeta(); setSync('off'); refreshSheet(); toast('Sync stopped on this device. Your collections stay here.'); });
+document.getElementById('sync-join-btn').addEventListener('click', async () => {
+  const inp = document.getElementById('sync-join'), code = codeFrom(inp.value);
+  if (!code) { toast('That is not a sync link or code'); return; }
+  inp.value = '';
+  if (await startSync(code)) toast('Synced with your other device');
+});
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshFromCloud(); });
 render();
 initCloud();
+if (CAN_SYNC) {
+  const fromLink = codeFrom(decodeURIComponent(location.hash)), joined = fromLink && fromLink !== Sync.code;
+  if (fromLink) history.replaceState(null, '', location.pathname + location.search);  // keep the code out of the address bar
+  const code = fromLink || Sync.code;
+  if (code) startSync(code).then(ok => { if (joined) toast(ok ? 'Synced with your other device' : 'Could not reach the sync server'); });
+}
+drawSync();
 if (location.hostname.endsWith('github.io')) document.getElementById('gh-link').hidden = false;
 </script>
